@@ -3,6 +3,10 @@ import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
 
+// Página lê o banco a cada requisição — nunca deve ser pré-renderizada
+// estaticamente no build (que roda antes das migrations serem aplicadas).
+export const dynamic = "force-dynamic";
+
 const monthAbbreviationFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
   timeZone: "UTC",
