@@ -17,6 +17,8 @@ const monthAbbreviationFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 });
 
+const quantityFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
+
 const inputClass =
   "w-full rounded-md border border-black/[.12] bg-white px-4 py-3 text-base text-black outline-none focus:border-black/40 dark:border-white/[.2] dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-white/40";
 
@@ -50,6 +52,23 @@ export default async function ProdutosPage({
   const quantidadeCompras = matches.length;
   const precoMedio = quantidadeCompras > 0 ? totalGasto / quantidadeCompras : 0;
 
+  // Quantidade total comprada, agrupada por unidade de medida — não dá pra
+  // somar "Kg" com "UN" num número só, então cada unidade vira um grupo à parte.
+  // Normaliza a caixa (a extração da nota às vezes salva "KG" e outras "Kg"
+  // pro mesmo produto) senão a mesma unidade vira grupos duplicados.
+  const quantityByUnit = new Map<string, number>();
+  for (const transaction of matches) {
+    if (transaction.quantidade == null) continue;
+    const unit = transaction.unidadeMedida?.toUpperCase() ?? "";
+    quantityByUnit.set(unit, (quantityByUnit.get(unit) ?? 0) + transaction.quantidade);
+  }
+  const quantidadeTotalLabel =
+    quantityByUnit.size === 0
+      ? "—"
+      : Array.from(quantityByUnit.entries())
+          .map(([unit, total]) => (unit ? `${quantityFormatter.format(total)} ${unit}` : quantityFormatter.format(total)))
+          .join(" + ");
+
   const monthlyTotalsByKey = new Map<string, number>();
   for (const transaction of matches) {
     const monthKey = transaction.date.toISOString().slice(0, 7);
@@ -69,6 +88,8 @@ export default async function ProdutosPage({
     description: transaction.subcategoria || transaction.description,
     nomeEmissor: transaction.nomeEmissor,
     codigoItem: transaction.codigoItem,
+    quantidade: transaction.quantidade,
+    unidadeMedida: transaction.unidadeMedida,
     category: {
       name: transaction.category.name,
       color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
@@ -134,7 +155,7 @@ export default async function ProdutosPage({
 
         {query && quantidadeCompras > 0 && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">Total gasto</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-red-600 dark:text-red-500">
@@ -153,6 +174,12 @@ export default async function ProdutosPage({
                   {currencyFormatter.format(precoMedio)}
                 </p>
               </div>
+              <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">Quantidade total</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-black dark:text-zinc-50">
+                  {quantidadeTotalLabel}
+                </p>
+              </div>
             </div>
 
             <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
@@ -166,7 +193,7 @@ export default async function ProdutosPage({
               <h3 className="mb-3 text-sm font-medium text-zinc-600 dark:text-zinc-400">
                 {quantidadeCompras} {quantidadeCompras === 1 ? "compra encontrada" : "compras encontradas"}
               </h3>
-              <TransactionsTable transactions={tableRows} showType={false} showCode />
+              <TransactionsTable transactions={tableRows} showType={false} showCode showQuantity />
             </div>
           </>
         )}

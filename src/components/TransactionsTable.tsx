@@ -8,6 +8,8 @@ export type TableRow = {
   description: string;
   nomeEmissor: string | null;
   codigoItem?: string | null;
+  quantidade?: number | null;
+  unidadeMedida?: string | null;
   category: { name: string; color: string };
   type: "INCOME" | "EXPENSE";
   amount: number;
@@ -17,6 +19,16 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+const quantityFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 });
+
+// "1,305 Kg", "3 UN", só o número se não tiver unidade, "—" se não tiver nem quantidade
+// (transações lançadas manualmente pelo modal não têm esses dois campos).
+function formatQuantity(quantidade?: number | null, unidadeMedida?: string | null): string {
+  if (quantidade == null) return "—";
+  const amount = quantityFormatter.format(quantidade);
+  return unidadeMedida ? `${amount} ${unidadeMedida}` : amount;
+}
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -43,11 +55,13 @@ export function TransactionsTable({
   onRowClick,
   showType = true,
   showCode = false,
+  showQuantity = false,
 }: {
   transactions: TableRow[];
   onRowClick?: (transaction: TableRow) => void;
   showType?: boolean;
   showCode?: boolean;
+  showQuantity?: boolean;
 }) {
   return (
     <>
@@ -107,13 +121,20 @@ export function TransactionsTable({
                       {isIncome ? "Receita" : "Despesa"}
                     </td>
                   )}
-                  <td
-                    className={`px-4 py-3 text-right font-medium tabular-nums whitespace-nowrap ${
-                      isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-                    }`}
-                  >
-                    {isIncome ? "+" : "-"}
-                    {currencyFormatter.format(transaction.amount)}
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <span
+                      className={`font-medium tabular-nums ${
+                        isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                      }`}
+                    >
+                      {isIncome ? "+" : "-"}
+                      {currencyFormatter.format(transaction.amount)}
+                    </span>
+                    {showQuantity && (
+                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                        {formatQuantity(transaction.quantidade, transaction.unidadeMedida)}
+                      </p>
+                    )}
                   </td>
                 </tr>
               );
@@ -144,13 +165,20 @@ export function TransactionsTable({
                 <p className="min-w-0 flex-1 text-sm font-medium text-black dark:text-zinc-50">
                   {transaction.description}
                 </p>
-                <span
-                  className={`shrink-0 text-right text-sm font-semibold tabular-nums ${
-                    isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
-                  }`}
-                >
-                  {isIncome ? "+" : "-"}
-                  {currencyFormatter.format(transaction.amount)}
+                <span className="shrink-0 text-right">
+                  <span
+                    className={`block text-sm font-semibold tabular-nums ${
+                      isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                    }`}
+                  >
+                    {isIncome ? "+" : "-"}
+                    {currencyFormatter.format(transaction.amount)}
+                  </span>
+                  {showQuantity && (
+                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                      {formatQuantity(transaction.quantidade, transaction.unidadeMedida)}
+                    </span>
+                  )}
                 </span>
               </div>
 
