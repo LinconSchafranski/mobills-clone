@@ -46,3 +46,7 @@ next-env.d.ts
 /*.db
 /*.db-journal
 .env.n8n
+*.xlsx
+
+# log de falhas do script de importação em massa (dados reais, não deve ser versionado)
+scripts/import-historico-falhas.json

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
+import { logout } from "@/app/login/actions";
 
 // Página lê o banco a cada requisição — nunca deve ser pré-renderizada
 // estaticamente no build (que roda antes das migrations serem aplicadas).
@@ -90,6 +91,15 @@ export default async function Home() {
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full max-w-5xl flex-col gap-8 px-6 py-16">
+        <form action={logout} className="flex justify-end">
+          <button
+            type="submit"
+            className="text-sm font-medium text-zinc-600 transition-colors hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            Sair
+          </button>
+        </form>
+
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
             Dashboard
