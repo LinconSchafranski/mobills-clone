@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
+import { FiltersPanel } from "@/components/FiltersPanel";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
 import { CategoryEvolutionChart } from "@/components/charts/CategoryEvolutionChart";
@@ -26,7 +28,24 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 });
 
-export default async function Home() {
+function startOfUTCMonth(date: Date, monthOffset = 0): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + monthOffset, 1));
+}
+
+type SearchParams = {
+  periodo?: string;
+  categorias?: string;
+  tipo?: string;
+  busca?: string;
+};
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const filters = await searchParams;
+
   const [transactions, categories, topExpenses] = await Promise.all([
     prisma.transaction.findMany({
       include: { category: true },
@@ -41,12 +60,58 @@ export default async function Home() {
     }),
   ]);
 
-  const balance = transactions.reduce((total, transaction) => {
+  // Filtros da tabela de transações (não afetam os gráficos do dashboard,
+  // que sempre usam `transactions` — o histórico completo, sem filtro).
+  // "Mês atual"/"mês anterior" são calculados a partir da data mais recente
+  // que existe no banco (transactions já vem ordenado por date desc), não
+  // da data real de hoje.
+  const referenceDate = transactions[0]?.date ?? new Date();
+  const periodo = filters.periodo ?? "mes-atual";
+
+  let dateFilter: { gte: Date; lt: Date } | undefined;
+  if (periodo === "mes-atual") {
+    dateFilter = { gte: startOfUTCMonth(referenceDate, 0), lt: startOfUTCMonth(referenceDate, 1) };
+  } else if (periodo === "mes-anterior") {
+    dateFilter = { gte: startOfUTCMonth(referenceDate, -1), lt: startOfUTCMonth(referenceDate, 0) };
+  } else if (periodo === "ultimos-3-meses") {
+    dateFilter = { gte: startOfUTCMonth(referenceDate, -2), lt: startOfUTCMonth(referenceDate, 1) };
+  }
+  // periodo === "historico" -> dateFilter fica undefined (sem filtro de data)
+
+  const tipo = filters.tipo ?? "todos";
+  const typeFilter = tipo === "despesa" ? "EXPENSE" : tipo === "receita" ? "INCOME" : undefined;
+
+  const categoriaIds = filters.categorias ? filters.categorias.split(",").filter(Boolean) : [];
+
+  const busca = (filters.busca ?? "").trim();
+
+  const filteredTransactions = await prisma.transaction.findMany({
+    where: {
+      ...(dateFilter ? { date: dateFilter } : {}),
+      ...(typeFilter ? { type: typeFilter } : {}),
+      ...(categoriaIds.length > 0 ? { categoryId: { in: categoriaIds } } : {}),
+      ...(busca
+        ? {
+            OR: [
+              { description: { contains: busca } },
+              { subcategoria: { contains: busca } },
+              { nomeEmissor: { contains: busca } },
+            ],
+          }
+        : {}),
+    },
+    include: { category: true },
+    orderBy: { date: "desc" },
+  });
+
+  // Saldo reflete o filtro ativo (mesmo conjunto que alimenta a tabela) —
+  // diferente dos gráficos do dashboard, que sempre usam `transactions` cheio.
+  const balance = filteredTransactions.reduce((total, transaction) => {
     const amount = Number(transaction.amount);
     return transaction.type === "INCOME" ? total + amount : total - amount;
   }, 0);
 
-  const serializedTransactions = transactions.map((transaction) => ({
+  const serializedTransactions = filteredTransactions.map((transaction) => ({
     id: transaction.id,
     description: transaction.description,
     amount: Number(transaction.amount),
@@ -273,6 +338,10 @@ export default async function Home() {
             </table>
           </div>
         </div>
+
+        <Suspense fallback={null}>
+          <FiltersPanel categories={categories} />
+        </Suspense>
 
         <TransactionsPanel
           balance={balance}
