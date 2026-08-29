@@ -33,12 +33,14 @@ model Transaction {
   categoryId  String
 
   // Dados de nota fiscal (preenchidos por integrações externas, ex: importação via n8n)
-  nomeEmissor   String?
-  cnpjEmissor   String?
-  chaveAcesso   String?
-  codigoItem    String?
-  quantidade    Float?
-  unidadeMedida String?
-  subcategoria  String?
-  ncmCode       String?
+  nomeEmissor    String?
+  cnpjEmissor    String?
+  chaveAcesso    String?
+  codigoItem     String?
+  quantidade     Float?
+  unidadeMedida  String?
+  subcategoria   String?
+  ncmCode        String?
+  // Valor total da nota fiscal inteira (diferente de "amount", que é só do item)
+  valorTotalNota Decimal?
 }

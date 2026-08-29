@@ -14,6 +14,7 @@ type ImportPayload = {
   unidade_medida?: unknown;
   valor_unitario_item?: unknown;
   valor_total_item?: unknown;
+  valor_total?: unknown;
   categoria?: unknown;
   subcategoria?: unknown;
   ncm_code?: unknown;
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
       unidadeMedida: optionalString(payload.unidade_medida),
       subcategoria: optionalString(payload.subcategoria),
       ncmCode: optionalString(payload.ncm_code),
+      valorTotalNota: optionalNumber(payload.valor_total),
     },
     include: { category: true },
   });
@@ -91,6 +93,7 @@ export async function POST(request: NextRequest) {
     {
       ...transaction,
       amount: Number(transaction.amount),
+      valorTotalNota: transaction.valorTotalNota === null ? null : Number(transaction.valorTotalNota),
     },
     { status: 201 },
   );
