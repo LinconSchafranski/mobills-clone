@@ -57,7 +57,7 @@ export default async function LoginPage({
 
           <button
             type="submit"
-            className="mt-2 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            className="mt-2 rounded-full bg-[#2a78d6] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2166b8] dark:bg-[#3987e5] dark:hover:bg-[#2a78d6]"
           >
             Entrar
           </button>

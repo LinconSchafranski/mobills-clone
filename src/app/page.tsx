@@ -2,10 +2,12 @@ import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { FiltersPanel } from "@/components/FiltersPanel";
+import { TransactionsTable } from "@/components/TransactionsTable";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
 import { CategoryEvolutionChart } from "@/components/charts/CategoryEvolutionChart";
 import { logout } from "@/app/login/actions";
+import { buildCategoryColorMap, HIDDEN_CATEGORY_NAMES } from "@/lib/categoryColors";
 
 // Página lê o banco a cada requisição — nunca deve ser pré-renderizada
 // estaticamente no build (que roda antes das migrations serem aplicadas).
@@ -13,18 +15,6 @@ export const dynamic = "force-dynamic";
 
 const monthAbbreviationFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
-  timeZone: "UTC",
-});
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
   timeZone: "UTC",
 });
 
@@ -46,7 +36,7 @@ export default async function Home({
 }) {
   const filters = await searchParams;
 
-  const [transactions, categories, topExpenses] = await Promise.all([
+  const [transactions, allCategories, topExpenses] = await Promise.all([
     prisma.transaction.findMany({
       include: { category: true },
       orderBy: { date: "desc" },
@@ -59,6 +49,18 @@ export default async function Home({
       include: { category: true },
     }),
   ]);
+
+  // Paleta categórica atribuída na apresentação (não mexe em Category.color no
+  // banco — várias categorias em produção foram criadas automaticamente pela
+  // importação e ficaram todas com o mesmo cinza, indistinguíveis nos gráficos).
+  const categoryColor = buildCategoryColorMap(allCategories);
+
+  // "Teste API" é uma categoria de teste que vazou pra produção — continua
+  // existindo no banco (histórico não é apagado), mas não deve aparecer como
+  // opção pra escolher em filtros nem no formulário de nova/editar transação.
+  const categories = allCategories
+    .filter((category) => !HIDDEN_CATEGORY_NAMES.has(category.name))
+    .map((category) => ({ ...category, color: categoryColor.get(category.id) ?? category.color }));
 
   // Filtros da tabela de transações (não afetam os gráficos do dashboard,
   // que sempre usam `transactions` — o histórico completo, sem filtro).
@@ -121,7 +123,7 @@ export default async function Home({
     category: {
       id: transaction.category.id,
       name: transaction.category.name,
-      color: transaction.category.color,
+      color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
     },
     subcategoria: transaction.subcategoria,
     nomeEmissor: transaction.nomeEmissor,
@@ -162,7 +164,7 @@ export default async function Home({
     } else {
       expensesByCategoryMap.set(transaction.categoryId, {
         name: transaction.category.name,
-        color: transaction.category.color,
+        color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
         total: amount,
       });
     }
@@ -188,7 +190,7 @@ export default async function Home({
     } else {
       totalExpenseByCategoryId.set(transaction.categoryId, {
         name: transaction.category.name,
-        color: transaction.category.color,
+        color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
         total: amount,
       });
     }
@@ -247,22 +249,53 @@ export default async function Home({
       return point;
     });
 
-  return (
-    <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex w-full max-w-5xl flex-col gap-8 px-6 py-16">
-        <form action={logout} className="flex justify-end">
-          <button
-            type="submit"
-            className="text-sm font-medium text-zinc-600 transition-colors hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
-          >
-            Sair
-          </button>
-        </form>
+  const topExpensesRows = topExpenses.map((transaction) => ({
+    id: transaction.id,
+    date: transaction.date.toISOString().slice(0, 10),
+    description: transaction.subcategoria || transaction.description,
+    nomeEmissor: transaction.nomeEmissor,
+    category: {
+      name: transaction.category.name,
+      color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
+    },
+    type: transaction.type,
+    amount: Number(transaction.amount),
+  }));
 
-        <div>
+  return (
+    <div className="flex flex-1 flex-col items-center bg-zinc-50 font-sans dark:bg-black">
+      <header className="w-full border-b border-black/[.08] bg-white dark:border-white/[.145] dark:bg-zinc-950">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-3.5">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#2a78d6] text-sm font-bold text-white dark:bg-[#3987e5]">
+              G
+            </span>
+            <span className="text-base font-semibold tracking-tight text-black dark:text-zinc-50">
+              Gastos
+            </span>
+          </div>
+
+          <form action={logout}>
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 rounded-full border border-black/[.12] px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
+            >
+              Sair
+            </button>
+          </form>
+        </div>
+      </header>
+
+      <main className="flex w-full max-w-5xl flex-col gap-10 px-6 py-10">
+        <section id="dashboard">
           <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
             Dashboard
           </h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Visão consolidada de receitas, despesas e categorias — sempre com o histórico completo,
+            independente dos filtros abaixo.
+          </p>
+
           <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
               <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
@@ -285,69 +318,30 @@ export default async function Home({
             <CategoryEvolutionChart data={categoryEvolutionData} series={categorySeries} />
           </div>
 
-          <div className="mt-6 overflow-x-auto rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
-            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+          <div className="mt-6 rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
+            <h3 className="mb-3 text-sm font-medium text-zinc-600 dark:text-zinc-400">
               Maiores gastos individuais
             </h3>
-            <table className="mt-3 w-full min-w-[640px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-black/[.08] text-zinc-600 dark:border-white/[.145] dark:text-zinc-400">
-                  <th className="py-2 pr-4 font-medium">Data</th>
-                  <th className="py-2 pr-4 font-medium">Descrição</th>
-                  <th className="py-2 pr-4 font-medium">Estabelecimento</th>
-                  <th className="py-2 pr-4 font-medium">Categoria</th>
-                  <th className="py-2 text-right font-medium">Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topExpenses.map((transaction) => (
-                  <tr
-                    key={transaction.id}
-                    className="border-b border-black/[.06] last:border-0 dark:border-white/[.08]"
-                  >
-                    <td className="py-3 pr-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                      {dateFormatter.format(transaction.date)}
-                    </td>
-                    <td className="py-3 pr-4 text-black dark:text-zinc-50">
-                      {transaction.subcategoria || transaction.description}
-                    </td>
-                    <td className="py-3 pr-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                      {transaction.nomeEmissor ?? "—"}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium"
-                        style={{
-                          backgroundColor: `${transaction.category.color}1a`,
-                          color: transaction.category.color,
-                        }}
-                      >
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: transaction.category.color }}
-                        />
-                        {transaction.category.name}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right font-medium tabular-nums whitespace-nowrap text-red-600 dark:text-red-500">
-                      {currencyFormatter.format(Number(transaction.amount))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TransactionsTable transactions={topExpensesRows} showType={false} />
           </div>
-        </div>
+        </section>
 
-        <Suspense fallback={null}>
-          <FiltersPanel categories={categories} />
-        </Suspense>
+        <section
+          id="transacoes"
+          className="flex flex-col gap-4 border-t border-black/[.08] pt-8 dark:border-white/[.145]"
+        >
+          <Suspense fallback={null}>
+            <FiltersPanel categories={categories} />
+          </Suspense>
 
-        <TransactionsPanel
-          balance={balance}
-          transactions={serializedTransactions}
-          categories={categories}
-        />
+          <Suspense fallback={null}>
+            <TransactionsPanel
+              balance={balance}
+              transactions={serializedTransactions}
+              categories={categories}
+            />
+          </Suspense>
+        </section>
       </main>
     </div>
   );

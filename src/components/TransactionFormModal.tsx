@@ -11,6 +11,15 @@ const inputClass =
 const labelClass =
   "mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400";
 
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+function centsToDisplay(cents: number): string {
+  return currencyFormatter.format(cents / 100);
+}
+
 export function TransactionFormModal({
   categories,
   transaction,
@@ -22,6 +31,10 @@ export function TransactionFormModal({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [amountCents, setAmountCents] = useState(() =>
+    transaction ? Math.round(transaction.amount * 100) : 0,
+  );
   const dialogRef = useRef<HTMLDivElement>(null);
   const isEditing = Boolean(transaction);
 
@@ -33,6 +46,11 @@ export function TransactionFormModal({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  function handleAmountChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const digitsOnly = event.target.value.replace(/\D/g, "");
+    setAmountCents(digitsOnly === "" ? 0 : Number(digitsOnly));
+  }
 
   async function handleSubmit(formData: FormData) {
     setPending(true);
@@ -53,10 +71,11 @@ export function TransactionFormModal({
 
   async function handleDelete() {
     if (!transaction) return;
-    const confirmed = window.confirm(
-      `Excluir a transação "${transaction.description}"? Essa ação não pode ser desfeita.`,
-    );
-    if (!confirmed) return;
+
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      return;
+    }
 
     setPending(true);
     setError(null);
@@ -66,6 +85,7 @@ export function TransactionFormModal({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível excluir a transação.");
       setPending(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -124,14 +144,14 @@ export function TransactionFormModal({
               </label>
               <input
                 id="amount"
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
+                type="text"
+                inputMode="decimal"
                 required
-                defaultValue={transaction?.amount}
+                value={centsToDisplay(amountCents)}
+                onChange={handleAmountChange}
                 className={inputClass}
               />
+              <input type="hidden" name="amount" value={(amountCents / 100).toFixed(2)} />
             </div>
             <div>
               <label htmlFor="date" className={labelClass}>
@@ -191,23 +211,46 @@ export function TransactionFormModal({
             <p className="text-sm text-red-600 dark:text-red-500">{error}</p>
           )}
 
+          {confirmingDelete && (
+            <p className="rounded-md bg-red-600/10 px-3 py-2 text-sm text-red-700 dark:text-red-400">
+              Tem certeza? Essa ação não pode ser desfeita.
+            </p>
+          )}
+
           <div className="mt-2 flex items-center gap-3">
-            <button
-              type="submit"
-              disabled={pending}
-              className="flex-1 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-50 dark:hover:bg-[#ccc]"
-            >
-              {pending ? "Salvando..." : isEditing ? "Salvar alterações" : "Salvar"}
-            </button>
+            {!confirmingDelete && (
+              <button
+                type="submit"
+                disabled={pending}
+                className="flex-1 rounded-full bg-[#2a78d6] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2166b8] disabled:opacity-50 dark:bg-[#3987e5] dark:hover:bg-[#2a78d6]"
+              >
+                {pending ? "Salvando..." : isEditing ? "Salvar alterações" : "Salvar"}
+              </button>
+            )}
+
+            {isEditing && confirmingDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                disabled={pending}
+                className="flex-1 rounded-full border border-black/[.12] px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
+              >
+                Cancelar
+              </button>
+            )}
 
             {isEditing && (
               <button
                 type="button"
                 onClick={handleDelete}
                 disabled={pending}
-                className="rounded-full border border-red-600 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:opacity-50 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500 dark:hover:text-white"
+                className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+                  confirmingDelete
+                    ? "flex-1 border-red-600 bg-red-600 text-white hover:bg-red-700 dark:border-red-500 dark:bg-red-500 dark:hover:bg-red-600"
+                    : "border-red-600 text-red-600 hover:bg-red-600 hover:text-white dark:border-red-500 dark:text-red-500 dark:hover:bg-red-500 dark:hover:text-white"
+                }`}
               >
-                Excluir
+                {pending ? "Excluindo..." : confirmingDelete ? "Confirmar exclusão" : "Excluir"}
               </button>
             )}
           </div>

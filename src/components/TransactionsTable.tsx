@@ -1,0 +1,141 @@
+"use client";
+
+import { CategoryBadge } from "./CategoryBadge";
+
+export type TableRow = {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  description: string;
+  nomeEmissor: string | null;
+  category: { name: string; color: string };
+  type: "INCOME" | "EXPENSE";
+  amount: number;
+};
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+/**
+ * Tabela normal em telas >= sm; cards empilhados abaixo disso, pra que Data,
+ * Descrição, Categoria, Tipo e Valor nunca fiquem cortados da viewport (o
+ * problema original era a tabela só ter scroll horizontal, sem indicação
+ * visual, e o Valor — a informação mais importante — ficar fora da tela).
+ */
+export function TransactionsTable({
+  transactions,
+  onRowClick,
+  showType = true,
+}: {
+  transactions: TableRow[];
+  onRowClick?: (transaction: TableRow) => void;
+  showType?: boolean;
+}) {
+  return (
+    <>
+      <div className="hidden overflow-x-auto rounded-lg border border-black/[.08] sm:block dark:border-white/[.145]">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-black/[.08] text-zinc-600 dark:border-white/[.145] dark:text-zinc-400">
+              <th className="px-4 py-3 font-medium">Data</th>
+              <th className="px-4 py-3 font-medium">Descrição</th>
+              <th className="px-4 py-3 font-medium">Estabelecimento</th>
+              <th className="px-4 py-3 font-medium">Categoria</th>
+              {showType && <th className="px-4 py-3 font-medium">Tipo</th>}
+              <th className="px-4 py-3 text-right font-medium">Valor</th>
+            </tr>
+          </thead>
+          <tbody>
+            {transactions.map((transaction) => {
+              const isIncome = transaction.type === "INCOME";
+              return (
+                <tr
+                  key={transaction.id}
+                  onClick={onRowClick ? () => onRowClick(transaction) : undefined}
+                  className={`border-b border-black/[.06] last:border-0 dark:border-white/[.08] ${
+                    onRowClick ? "cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.05]" : ""
+                  }`}
+                >
+                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                    {dateFormatter.format(new Date(transaction.date))}
+                  </td>
+                  <td className="px-4 py-3 text-black dark:text-zinc-50">{transaction.description}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                    {transaction.nomeEmissor ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <CategoryBadge name={transaction.category.name} color={transaction.category.color} />
+                  </td>
+                  {showType && (
+                    <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                      {isIncome ? "Receita" : "Despesa"}
+                    </td>
+                  )}
+                  <td
+                    className={`px-4 py-3 text-right font-medium tabular-nums whitespace-nowrap ${
+                      isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                    }`}
+                  >
+                    {isIncome ? "+" : "-"}
+                    {currencyFormatter.format(transaction.amount)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:hidden">
+        {transactions.map((transaction) => {
+          const isIncome = transaction.type === "INCOME";
+          return (
+            <div
+              key={transaction.id}
+              onClick={onRowClick ? () => onRowClick(transaction) : undefined}
+              className={`rounded-lg border border-black/[.08] bg-white p-3 dark:border-white/[.145] dark:bg-zinc-950 ${
+                onRowClick ? "cursor-pointer active:bg-black/[.03] dark:active:bg-white/[.05]" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 text-sm font-medium text-black dark:text-zinc-50">
+                  {transaction.description}
+                </p>
+                <span
+                  className={`shrink-0 text-right text-sm font-semibold tabular-nums ${
+                    isIncome ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+                  }`}
+                >
+                  {isIncome ? "+" : "-"}
+                  {currencyFormatter.format(transaction.amount)}
+                </span>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <CategoryBadge name={transaction.category.name} color={transaction.category.color} />
+                <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400">
+                  {dateFormatter.format(new Date(transaction.date))}
+                  {showType && <> · {isIncome ? "Receita" : "Despesa"}</>}
+                </span>
+              </div>
+
+              {transaction.nomeEmissor && (
+                <p className="mt-1.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                  {transaction.nomeEmissor}
+                </p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}

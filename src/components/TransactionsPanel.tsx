@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { TransactionFormModal } from "./TransactionFormModal";
+import { TransactionsTable } from "./TransactionsTable";
 import type { Category } from "@/generated/prisma/client";
 
 export type SerializedTransaction = {
@@ -21,12 +23,7 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  timeZone: "UTC",
-});
+const PAGE_SIZE = 20;
 
 type ModalState = { mode: "create" } | { mode: "edit"; transaction: SerializedTransaction };
 
@@ -40,22 +37,40 @@ export function TransactionsPanel({
   categories: Category[];
 }) {
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const searchParams = useSearchParams();
+
+  // Sempre que o conjunto filtrado muda (nova busca/filtro), volta pra
+  // primeira página em vez de manter uma contagem "carregar mais" antiga.
+  // Ajuste de estado durante a renderização (não em useEffect) — é o padrão
+  // recomendado pelo React para "resetar estado quando uma prop muda".
+  const [trackedTransactions, setTrackedTransactions] = useState(transactions);
+  if (trackedTransactions !== transactions) {
+    setTrackedTransactions(transactions);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  const busca = searchParams.get("busca");
+  const hasFilters =
+    searchParams.get("periodo") ||
+    searchParams.get("tipo") ||
+    searchParams.get("categorias") ||
+    busca;
+
+  const visibleTransactions = transactions.slice(0, visibleCount);
+  const hasMore = transactions.length > visibleCount;
 
   return (
     <>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-black dark:text-zinc-50">
+          <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
             Visão geral
-          </h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Saldo total
-          </p>
+          </h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Saldo do período filtrado</p>
           <p
             className={`mt-1 text-4xl font-bold tabular-nums ${
-              balance >= 0
-                ? "text-green-600 dark:text-green-500"
-                : "text-red-600 dark:text-red-500"
+              balance >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
             }`}
           >
             {currencyFormatter.format(balance)}
@@ -65,76 +80,68 @@ export function TransactionsPanel({
         <button
           type="button"
           onClick={() => setModal({ mode: "create" })}
-          className="rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          className="rounded-full bg-[#2a78d6] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2166b8] dark:bg-[#3987e5] dark:hover:bg-[#2a78d6]"
         >
           Nova transação
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-black/[.08] dark:border-white/[.145]">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-black/[.08] text-zinc-600 dark:border-white/[.145] dark:text-zinc-400">
-              <th className="px-4 py-3 font-medium">Data</th>
-              <th className="px-4 py-3 font-medium">Descrição</th>
-              <th className="px-4 py-3 font-medium">Estabelecimento</th>
-              <th className="px-4 py-3 font-medium">Categoria</th>
-              <th className="px-4 py-3 font-medium">Tipo</th>
-              <th className="px-4 py-3 text-right font-medium">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((transaction) => {
-              const isIncome = transaction.type === "INCOME";
+      <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+        {transactions.length === 0
+          ? "Nenhuma transação encontrada"
+          : `${transactions.length} ${transactions.length === 1 ? "transação encontrada" : "transações encontradas"}`}
+        {busca && (
+          <>
+            {" "}
+            para <span className="font-medium text-black dark:text-zinc-50">&quot;{busca}&quot;</span>
+          </>
+        )}
+        {hasFilters && " (com filtro aplicado)"}
+      </p>
 
-              return (
-                <tr
-                  key={transaction.id}
-                  onClick={() => setModal({ mode: "edit", transaction })}
-                  className="cursor-pointer border-b border-black/[.06] last:border-0 hover:bg-black/[.03] dark:border-white/[.08] dark:hover:bg-white/[.05]"
+      <div className="mt-2">
+        {transactions.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-black/[.12] p-10 text-center dark:border-white/[.2]">
+            <p className="text-sm font-medium text-black dark:text-zinc-50">
+              {hasFilters ? "Nenhum resultado para esse filtro" : "Nenhuma transação ainda"}
+            </p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              {hasFilters
+                ? "Tente ajustar o período, a categoria ou o texto buscado."
+                : "Clique em \"Nova transação\" para lançar a primeira."}
+            </p>
+          </div>
+        ) : (
+          <>
+            <TransactionsTable
+              transactions={visibleTransactions.map((transaction) => ({
+                id: transaction.id,
+                date: transaction.date,
+                description: transaction.subcategoria || transaction.description,
+                nomeEmissor: transaction.nomeEmissor,
+                category: transaction.category,
+                type: transaction.type,
+                amount: transaction.amount,
+              }))}
+              onRowClick={(row) => {
+                const original = transactions.find((t) => t.id === row.id);
+                if (original) setModal({ mode: "edit", transaction: original });
+              }}
+            />
+
+            {hasMore && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+                  className="rounded-full border border-black/[.12] px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
                 >
-                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                    {dateFormatter.format(new Date(transaction.date))}
-                  </td>
-                  <td className="px-4 py-3 text-black dark:text-zinc-50">
-                    {transaction.subcategoria || transaction.description}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                    {transaction.nomeEmissor ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium"
-                      style={{
-                        backgroundColor: `${transaction.category.color}1a`,
-                        color: transaction.category.color,
-                      }}
-                    >
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: transaction.category.color }}
-                      />
-                      {transaction.category.name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
-                    {isIncome ? "Receita" : "Despesa"}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-medium tabular-nums whitespace-nowrap ${
-                      isIncome
-                        ? "text-green-600 dark:text-green-500"
-                        : "text-red-600 dark:text-red-500"
-                    }`}
-                  >
-                    {isIncome ? "+" : "-"}
-                    {currencyFormatter.format(transaction.amount)}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  Carregar mais ({transactions.length - visibleCount} restantes)
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {modal && (
