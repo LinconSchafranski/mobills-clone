@@ -35,7 +35,11 @@ export default async function ProdutosPage({
     ? await prisma.transaction.findMany({
         where: {
           type: "EXPENSE",
-          OR: [{ description: { contains: query } }, { subcategoria: { contains: query } }],
+          OR: [
+            { description: { contains: query } },
+            { subcategoria: { contains: query } },
+            { codigoItem: { contains: query } },
+          ],
         },
         include: { category: true },
         orderBy: { date: "desc" },
@@ -64,6 +68,7 @@ export default async function ProdutosPage({
     date: transaction.date.toISOString().slice(0, 10),
     description: transaction.subcategoria || transaction.description,
     nomeEmissor: transaction.nomeEmissor,
+    codigoItem: transaction.codigoItem,
     category: {
       name: transaction.category.name,
       color: categoryColor.get(transaction.categoryId) ?? transaction.category.color,
@@ -109,8 +114,9 @@ export default async function ProdutosPage({
               Digite o nome de um produto para ver o histórico de preços
             </p>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Ex: &quot;gasolina&quot;, &quot;iogurte&quot;, &quot;streaming&quot;... A busca olha a
-              descrição e a subcategoria do item, não importa o estabelecimento.
+              Ex: &quot;gasolina&quot;, &quot;iogurte&quot;, &quot;streaming&quot;, ou o código de barras do
+              produto... A busca olha a descrição, a subcategoria e o código do item, não importa o
+              estabelecimento.
             </p>
           </div>
         )}
@@ -160,7 +166,7 @@ export default async function ProdutosPage({
               <h3 className="mb-3 text-sm font-medium text-zinc-600 dark:text-zinc-400">
                 {quantidadeCompras} {quantidadeCompras === 1 ? "compra encontrada" : "compras encontradas"}
               </h3>
-              <TransactionsTable transactions={tableRows} showType={false} />
+              <TransactionsTable transactions={tableRows} showType={false} showCode />
             </div>
           </>
         )}

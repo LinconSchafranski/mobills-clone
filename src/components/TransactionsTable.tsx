@@ -7,6 +7,7 @@ export type TableRow = {
   date: string; // "YYYY-MM-DD"
   description: string;
   nomeEmissor: string | null;
+  codigoItem?: string | null;
   category: { name: string; color: string };
   type: "INCOME" | "EXPENSE";
   amount: number;
@@ -41,10 +42,12 @@ export function TransactionsTable({
   transactions,
   onRowClick,
   showType = true,
+  showCode = false,
 }: {
   transactions: TableRow[];
   onRowClick?: (transaction: TableRow) => void;
   showType?: boolean;
+  showCode?: boolean;
 }) {
   return (
     <>
@@ -55,6 +58,7 @@ export function TransactionsTable({
               <th className="px-4 py-3 font-medium">Data</th>
               <th className="px-4 py-3 font-medium">Descrição</th>
               <th className="px-4 py-3 font-medium">Estabelecimento</th>
+              {showCode && <th className="px-4 py-3 font-medium">Código</th>}
               <th className="px-4 py-3 font-medium">Categoria</th>
               {showType && <th className="px-4 py-3 font-medium">Tipo</th>}
               <th className="px-4 py-3 text-right font-medium">Valor</th>
@@ -81,10 +85,20 @@ export function TransactionsTable({
                   <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
                     {dateFormatter.format(new Date(transaction.date))}
                   </td>
-                  <td className="px-4 py-3 text-black dark:text-zinc-50">{transaction.description}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                  <td className="max-w-[220px] px-4 py-3 text-black dark:text-zinc-50">
+                    {transaction.description}
+                  </td>
+                  <td
+                    className="max-w-[160px] truncate px-4 py-3 text-zinc-600 dark:text-zinc-400"
+                    title={transaction.nomeEmissor ?? undefined}
+                  >
                     {transaction.nomeEmissor ?? "—"}
                   </td>
+                  {showCode && (
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                      {transaction.codigoItem ?? "—"}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     <CategoryBadge name={transaction.category.name} color={transaction.category.color} />
                   </td>
@@ -151,6 +165,12 @@ export function TransactionsTable({
               {transaction.nomeEmissor && (
                 <p className="mt-1.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
                   {transaction.nomeEmissor}
+                </p>
+              )}
+
+              {showCode && transaction.codigoItem && (
+                <p className="mt-1 truncate font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                  Cód. {transaction.codigoItem}
                 </p>
               )}
             </div>
