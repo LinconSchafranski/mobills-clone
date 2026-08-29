@@ -12,6 +12,8 @@ export type SerializedTransaction = {
   categoryId: string;
   type: "INCOME" | "EXPENSE";
   category: { id: string; name: string; color: string };
+  subcategoria: string | null;
+  nomeEmissor: string | null;
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -75,6 +77,7 @@ export function TransactionsPanel({
             <tr className="border-b border-black/[.08] text-zinc-600 dark:border-white/[.145] dark:text-zinc-400">
               <th className="px-4 py-3 font-medium">Data</th>
               <th className="px-4 py-3 font-medium">Descrição</th>
+              <th className="px-4 py-3 font-medium">Estabelecimento</th>
               <th className="px-4 py-3 font-medium">Categoria</th>
               <th className="px-4 py-3 font-medium">Tipo</th>
               <th className="px-4 py-3 text-right font-medium">Valor</th>
@@ -94,7 +97,10 @@ export function TransactionsPanel({
                     {dateFormatter.format(new Date(transaction.date))}
                   </td>
                   <td className="px-4 py-3 text-black dark:text-zinc-50">
-                    {transaction.description}
+                    {transaction.subcategoria || transaction.description}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                    {transaction.nomeEmissor ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span

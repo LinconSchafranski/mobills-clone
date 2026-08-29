@@ -38,6 +38,8 @@ export default async function Home() {
       name: transaction.category.name,
       color: transaction.category.color,
     },
+    subcategoria: transaction.subcategoria,
+    nomeEmissor: transaction.nomeEmissor,
   }));
 
   // Gráfico de barras: total de receitas x despesas, agrupado por mês, considerando todo o histórico.
