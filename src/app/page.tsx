@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
+import { CategoryEvolutionChart } from "@/components/charts/CategoryEvolutionChart";
 import { logout } from "@/app/login/actions";
 
 // Página lê o banco a cada requisição — nunca deve ser pré-renderizada
@@ -88,6 +89,81 @@ export default async function Home() {
     .map(([categoryId, value]) => ({ categoryId, ...value }))
     .sort((a, b) => b.total - a.total);
 
+  // Gráfico de linhas: evolução das despesas por categoria, mês a mês, em todo o histórico.
+  const MAX_CATEGORY_SERIES = 6;
+  const OTHER_SERIES_KEY = "other";
+  const OTHER_SERIES_COLOR = "#71717a";
+
+  // 1) Total gasto acumulado por categoria (todo o histórico), para decidir o Top 6.
+  const totalExpenseByCategoryId = new Map<string, { name: string; color: string; total: number }>();
+  for (const transaction of transactions) {
+    if (transaction.type !== "EXPENSE") continue;
+    const amount = Number(transaction.amount);
+    const existing = totalExpenseByCategoryId.get(transaction.categoryId);
+    if (existing) {
+      existing.total += amount;
+    } else {
+      totalExpenseByCategoryId.set(transaction.categoryId, {
+        name: transaction.category.name,
+        color: transaction.category.color,
+        total: amount,
+      });
+    }
+  }
+
+  const topCategoryIds = new Set(
+    Array.from(totalExpenseByCategoryId.entries())
+      .sort(([, a], [, b]) => b.total - a.total)
+      .slice(0, MAX_CATEGORY_SERIES)
+      .map(([categoryId]) => categoryId),
+  );
+
+  // 2) Soma por mês x série (categorias do Top 6 pelo id; o resto cai em "Outras").
+  const expenseByMonthAndSeries = new Map<string, Map<string, number>>();
+  for (const transaction of transactions) {
+    if (transaction.type !== "EXPENSE") continue;
+
+    const monthKey = transaction.date.toISOString().slice(0, 7);
+    const seriesKey = topCategoryIds.has(transaction.categoryId)
+      ? transaction.categoryId
+      : OTHER_SERIES_KEY;
+
+    const monthMap = expenseByMonthAndSeries.get(monthKey) ?? new Map<string, number>();
+    monthMap.set(seriesKey, (monthMap.get(seriesKey) ?? 0) + Number(transaction.amount));
+    expenseByMonthAndSeries.set(monthKey, monthMap);
+  }
+
+  // 3) Definição das séries (id, rótulo, cor), ordenadas por gasto total, "Outras" por último.
+  const categorySeries = Array.from(totalExpenseByCategoryId.entries())
+    .filter(([categoryId]) => topCategoryIds.has(categoryId))
+    .sort(([, a], [, b]) => b.total - a.total)
+    .map(([categoryId, { name, color }]) => ({ key: categoryId, label: name, color }));
+
+  const hasOtherSeries = Array.from(expenseByMonthAndSeries.values()).some((monthMap) =>
+    monthMap.has(OTHER_SERIES_KEY),
+  );
+  if (hasOtherSeries) {
+    categorySeries.push({ key: OTHER_SERIES_KEY, label: "Outras", color: OTHER_SERIES_COLOR });
+  }
+
+  // 4) Um ponto por mês, com 0 para série sem gasto naquele mês (linha contínua, sem buracos).
+  const categoryEvolutionData = Array.from(expenseByMonthAndSeries.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map((month) => {
+      const [year] = month.split("-");
+      const label = `${monthAbbreviationFormatter.format(new Date(`${month}-01T00:00:00Z`)).replace(".", "")}/${year}`;
+      const monthMap = expenseByMonthAndSeries.get(month)!;
+
+      const point: { month: string; label: string; [seriesKey: string]: string | number } = {
+        month,
+        label,
+      };
+      for (const series of categorySeries) {
+        point[series.key] = monthMap.get(series.key) ?? 0;
+      }
+      return point;
+    });
+
   return (
     <div className="flex flex-col flex-1 items-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full max-w-5xl flex-col gap-8 px-6 py-16">
@@ -117,6 +193,13 @@ export default async function Home() {
               </h3>
               <MonthlyIncomeExpenseChart data={monthlyTotals} />
             </div>
+          </div>
+
+          <div className="mt-6 rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
+            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+              Evolução por categoria
+            </h3>
+            <CategoryEvolutionChart data={categoryEvolutionData} series={categorySeries} />
           </div>
         </div>
 
