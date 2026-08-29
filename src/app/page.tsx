@@ -14,13 +14,31 @@ const monthAbbreviationFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 });
 
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 export default async function Home() {
-  const [transactions, categories] = await Promise.all([
+  const [transactions, categories, topExpenses] = await Promise.all([
     prisma.transaction.findMany({
       include: { category: true },
       orderBy: { date: "desc" },
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.transaction.findMany({
+      where: { type: "EXPENSE" },
+      orderBy: { amount: "desc" },
+      take: 10,
+      include: { category: true },
+    }),
   ]);
 
   const balance = transactions.reduce((total, transaction) => {
@@ -200,6 +218,59 @@ export default async function Home() {
               Evolução por categoria
             </h3>
             <CategoryEvolutionChart data={categoryEvolutionData} series={categorySeries} />
+          </div>
+
+          <div className="mt-6 overflow-x-auto rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
+            <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+              Maiores gastos individuais
+            </h3>
+            <table className="mt-3 w-full min-w-[640px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-black/[.08] text-zinc-600 dark:border-white/[.145] dark:text-zinc-400">
+                  <th className="py-2 pr-4 font-medium">Data</th>
+                  <th className="py-2 pr-4 font-medium">Descrição</th>
+                  <th className="py-2 pr-4 font-medium">Estabelecimento</th>
+                  <th className="py-2 pr-4 font-medium">Categoria</th>
+                  <th className="py-2 text-right font-medium">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topExpenses.map((transaction) => (
+                  <tr
+                    key={transaction.id}
+                    className="border-b border-black/[.06] last:border-0 dark:border-white/[.08]"
+                  >
+                    <td className="py-3 pr-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                      {dateFormatter.format(transaction.date)}
+                    </td>
+                    <td className="py-3 pr-4 text-black dark:text-zinc-50">
+                      {transaction.subcategoria || transaction.description}
+                    </td>
+                    <td className="py-3 pr-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                      {transaction.nomeEmissor ?? "—"}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <span
+                        className="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          backgroundColor: `${transaction.category.color}1a`,
+                          color: transaction.category.color,
+                        }}
+                      >
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: transaction.category.color }}
+                        />
+                        {transaction.category.name}
+                      </span>
+                    </td>
+                    <td className="py-3 text-right font-medium tabular-nums whitespace-nowrap text-red-600 dark:text-red-500">
+                      {currencyFormatter.format(Number(transaction.amount))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
