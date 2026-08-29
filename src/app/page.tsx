@@ -6,7 +6,7 @@ import { TransactionsTable } from "@/components/TransactionsTable";
 import { ExpensesByCategoryChart } from "@/components/charts/ExpensesByCategoryChart";
 import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpenseChart";
 import { CategoryEvolutionChart } from "@/components/charts/CategoryEvolutionChart";
-import { logout } from "@/app/login/actions";
+import { AppHeader } from "@/components/AppHeader";
 import { buildCategoryColorMap, HIDDEN_CATEGORY_NAMES } from "@/lib/categoryColors";
 
 // Página lê o banco a cada requisição — nunca deve ser pré-renderizada
@@ -79,6 +79,23 @@ export default async function Home({
     dateFilter = { gte: startOfUTCMonth(referenceDate, -2), lt: startOfUTCMonth(referenceDate, 1) };
   }
   // periodo === "historico" -> dateFilter fica undefined (sem filtro de data)
+
+  // Comparação de despesas do mês atual vs. mês anterior, pra mostrar a
+  // variação junto do saldo (só faz sentido exibir quando o filtro de
+  // período está em "mês atual", que é quando esse número é comparável).
+  const currentMonthRange = { gte: startOfUTCMonth(referenceDate, 0), lt: startOfUTCMonth(referenceDate, 1) };
+  const previousMonthRange = { gte: startOfUTCMonth(referenceDate, -1), lt: startOfUTCMonth(referenceDate, 0) };
+  let currentMonthExpense = 0;
+  let previousMonthExpense = 0;
+  for (const transaction of transactions) {
+    if (transaction.type !== "EXPENSE") continue;
+    const amount = Number(transaction.amount);
+    if (transaction.date >= currentMonthRange.gte && transaction.date < currentMonthRange.lt) {
+      currentMonthExpense += amount;
+    } else if (transaction.date >= previousMonthRange.gte && transaction.date < previousMonthRange.lt) {
+      previousMonthExpense += amount;
+    }
+  }
 
   const tipo = filters.tipo ?? "todos";
   const typeFilter = tipo === "despesa" ? "EXPENSE" : tipo === "receita" ? "INCOME" : undefined;
@@ -264,27 +281,7 @@ export default async function Home({
 
   return (
     <div className="flex flex-1 flex-col items-center bg-zinc-50 font-sans dark:bg-black">
-      <header className="w-full border-b border-black/[.08] bg-white dark:border-white/[.145] dark:bg-zinc-950">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-6 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[#2a78d6] text-sm font-bold text-white dark:bg-[#3987e5]">
-              G
-            </span>
-            <span className="text-base font-semibold tracking-tight text-black dark:text-zinc-50">
-              Gastos
-            </span>
-          </div>
-
-          <form action={logout}>
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 rounded-full border border-black/[.12] px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
-            >
-              Sair
-            </button>
-          </form>
-        </div>
-      </header>
+      <AppHeader active="dashboard" />
 
       <main className="flex w-full max-w-5xl flex-col gap-10 px-6 py-10">
         <section id="dashboard">
@@ -339,6 +336,7 @@ export default async function Home({
               balance={balance}
               transactions={serializedTransactions}
               categories={categories}
+              monthOverMonth={{ current: currentMonthExpense, previous: previousMonthExpense }}
             />
           </Suspense>
         </section>

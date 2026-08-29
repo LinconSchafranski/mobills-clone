@@ -31,10 +31,12 @@ export function TransactionsPanel({
   balance,
   transactions,
   categories,
+  monthOverMonth,
 }: {
   balance: number;
   transactions: SerializedTransaction[];
   categories: Category[];
+  monthOverMonth: { current: number; previous: number };
 }) {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -60,27 +62,55 @@ export function TransactionsPanel({
   const visibleTransactions = transactions.slice(0, visibleCount);
   const hasMore = transactions.length > visibleCount;
 
+  // Variação de despesas vs. mês anterior só é um número comparável quando o
+  // filtro de período está no padrão ("mês atual"); com outro período ou sem
+  // dado do mês anterior pra comparar, a comparação não é exibida.
+  const periodoParam = searchParams.get("periodo");
+  const showMonthComparison =
+    (!periodoParam || periodoParam === "mes-atual") && monthOverMonth.previous > 0;
+  const monthChangePercent = showMonthComparison
+    ? ((monthOverMonth.current - monthOverMonth.previous) / monthOverMonth.previous) * 100
+    : 0;
+
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-black dark:text-zinc-50">
             Visão geral
           </h2>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Saldo do período filtrado</p>
           <p
-            className={`mt-1 text-4xl font-bold tabular-nums ${
-              balance >= 0 ? "text-green-600 dark:text-green-500" : "text-red-600 dark:text-red-500"
+            className={`mt-1 text-4xl font-bold whitespace-nowrap tabular-nums ${
+              transactions.length === 0
+                ? "text-zinc-400 dark:text-zinc-600"
+                : balance >= 0
+                  ? "text-green-600 dark:text-green-500"
+                  : "text-red-600 dark:text-red-500"
             }`}
           >
             {currencyFormatter.format(balance)}
           </p>
+          {showMonthComparison && (
+            <p
+              className={`mt-1 text-xs font-medium ${
+                monthChangePercent > 0
+                  ? "text-red-600 dark:text-red-500"
+                  : monthChangePercent < 0
+                    ? "text-green-600 dark:text-green-500"
+                    : "text-zinc-500 dark:text-zinc-400"
+              }`}
+            >
+              {monthChangePercent > 0 ? "▲" : monthChangePercent < 0 ? "▼" : "="}{" "}
+              {Math.abs(monthChangePercent).toFixed(0)}% em despesas vs. mês anterior
+            </p>
+          )}
         </div>
 
         <button
           type="button"
           onClick={() => setModal({ mode: "create" })}
-          className="rounded-full bg-[#2a78d6] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#2166b8] dark:bg-[#3987e5] dark:hover:bg-[#2a78d6]"
+          className="w-full shrink-0 rounded-full bg-[#2a78d6] px-4 py-2 text-sm font-medium whitespace-nowrap text-white transition-colors hover:bg-[#2166b8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] sm:w-auto dark:bg-[#3987e5] dark:hover:bg-[#2a78d6]"
         >
           Nova transação
         </button>
@@ -134,7 +164,7 @@ export function TransactionsPanel({
                 <button
                   type="button"
                   onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
-                  className="rounded-full border border-black/[.12] px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
+                  className="rounded-full border border-black/[.12] px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-black/[.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] dark:border-white/[.2] dark:text-zinc-300 dark:hover:bg-white/[.08]"
                 >
                   Carregar mais ({transactions.length - visibleCount} restantes)
                 </button>

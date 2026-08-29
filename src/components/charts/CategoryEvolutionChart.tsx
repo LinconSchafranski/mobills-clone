@@ -33,6 +33,54 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
 const tickColor = "#71717a";
 const gridColor = "rgba(127,127,127,0.25)";
 
+type TooltipPayloadEntry = {
+  dataKey?: string | number;
+  name?: string;
+  value?: number;
+  color?: string;
+};
+
+// Tooltip padrão do Recharts lista todas as séries, mesmo as com R$ 0 naquele
+// mês — com várias categorias isso fica poluído (principalmente no mobile).
+// Aqui filtramos pra mostrar só quem teve gasto no mês, ordenado do maior pro menor.
+function CategoryEvolutionTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+  label?: string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const entries = payload
+    .filter((entry) => typeof entry.value === "number" && entry.value > 0)
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        backgroundColor: "var(--background)",
+        color: "var(--foreground)",
+        border: "1px solid rgba(127,127,127,0.3)",
+        borderRadius: 8,
+        fontSize: 13,
+        padding: "8px 12px",
+      }}
+    >
+      <p style={{ fontWeight: 600, marginBottom: 4 }}>{label}</p>
+      {entries.map((entry) => (
+        <p key={String(entry.dataKey)} style={{ color: entry.color, margin: 0 }}>
+          {entry.name}: {currencyFormatter.format(entry.value ?? 0)}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export function CategoryEvolutionChart({
   data,
   series,
@@ -80,16 +128,7 @@ export function CategoryEvolutionChart({
             width={64}
             tickFormatter={(value: number) => currencyFormatter.format(value)}
           />
-          <Tooltip
-            formatter={(value, name) => [currencyFormatter.format(Number(value)), String(name)]}
-            contentStyle={{
-              backgroundColor: "var(--background)",
-              color: "var(--foreground)",
-              border: "1px solid rgba(127,127,127,0.3)",
-              borderRadius: 8,
-              fontSize: 13,
-            }}
-          />
+          <Tooltip content={<CategoryEvolutionTooltip />} />
           <Legend
             onClick={(entry) => {
               if (typeof entry.dataKey === "string") toggleSeries(entry.dataKey);

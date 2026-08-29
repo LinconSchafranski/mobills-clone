@@ -24,6 +24,13 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "UTC",
 });
 
+function handleRowKeyDown(event: React.KeyboardEvent, onActivate: () => void) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    onActivate();
+  }
+}
+
 /**
  * Tabela normal em telas >= sm; cards empilhados abaixo disso, pra que Data,
  * Descrição, Categoria, Tipo e Valor nunca fiquem cortados da viewport (o
@@ -60,8 +67,15 @@ export function TransactionsTable({
                 <tr
                   key={transaction.id}
                   onClick={onRowClick ? () => onRowClick(transaction) : undefined}
+                  onKeyDown={
+                    onRowClick ? (event) => handleRowKeyDown(event, () => onRowClick(transaction)) : undefined
+                  }
+                  tabIndex={onRowClick ? 0 : undefined}
+                  role={onRowClick ? "button" : undefined}
                   className={`border-b border-black/[.06] last:border-0 dark:border-white/[.08] ${
-                    onRowClick ? "cursor-pointer hover:bg-black/[.03] dark:hover:bg-white/[.05]" : ""
+                    onRowClick
+                      ? "cursor-pointer hover:bg-black/[.03] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2a78d6] dark:hover:bg-white/[.05]"
+                      : ""
                   }`}
                 >
                   <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
@@ -101,8 +115,15 @@ export function TransactionsTable({
             <div
               key={transaction.id}
               onClick={onRowClick ? () => onRowClick(transaction) : undefined}
+              onKeyDown={
+                onRowClick ? (event) => handleRowKeyDown(event, () => onRowClick(transaction)) : undefined
+              }
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? "button" : undefined}
               className={`rounded-lg border border-black/[.08] bg-white p-3 dark:border-white/[.145] dark:bg-zinc-950 ${
-                onRowClick ? "cursor-pointer active:bg-black/[.03] dark:active:bg-white/[.05]" : ""
+                onRowClick
+                  ? "cursor-pointer active:bg-black/[.03] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] dark:active:bg-white/[.05]"
+                  : ""
               }`}
             >
               <div className="flex items-start justify-between gap-2">

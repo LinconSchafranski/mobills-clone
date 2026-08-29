@@ -99,7 +99,7 @@ export function FiltersPanel({ categories }: { categories: CategoryOption[] }) {
                 key={option.value}
                 type="button"
                 onClick={() => updateParams({ tipo: option.value === "todos" ? null : option.value })}
-                className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] ${
                   currentType === option.value
                     ? "bg-foreground text-background"
                     : "text-zinc-600 hover:bg-black/[.04] dark:text-zinc-400 dark:hover:bg-white/[.08]"
@@ -126,7 +126,7 @@ export function FiltersPanel({ categories }: { categories: CategoryOption[] }) {
           <button
             type="button"
             onClick={() => router.replace(pathname)}
-            className="pb-2 text-sm font-medium text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+            className="rounded pb-2 text-sm font-medium text-zinc-600 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6] dark:text-zinc-400"
           >
             Limpar filtros
           </button>
@@ -144,7 +144,7 @@ export function FiltersPanel({ categories }: { categories: CategoryOption[] }) {
                 type="button"
                 onClick={() => toggleCategory(category.id)}
                 aria-pressed={isSelected}
-                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity"
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2a78d6]"
                 style={{
                   borderColor: category.color,
                   backgroundColor: isSelected ? `${category.color}1a` : "transparent",
