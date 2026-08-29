@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Category {
+  id           String            @id @default(cuid())
+  name         String
+  type         TransactionType
+  color        String
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String           @id @default(cuid())
+  description String
+  amount      Decimal
+  date        DateTime
+  type        TransactionType
+  category    Category         @relation(fields: [categoryId], references: [id])
+  categoryId  String
+
+  // Dados de nota fiscal (preenchidos por integrações externas, ex: importação via n8n)
+  nomeEmissor   String?
+  cnpjEmissor   String?
+  chaveAcesso   String?
+  codigoItem    String?
+  quantidade    Float?
+  unidadeMedida String?
+  subcategoria  String?
+  ncmCode       String?
+}
