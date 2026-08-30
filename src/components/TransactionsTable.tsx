@@ -30,6 +30,14 @@ function formatQuantity(quantidade?: number | null, unidadeMedida?: string | nul
   return unidadeMedida ? `${amount} ${unidadeMedida}` : amount;
 }
 
+// Preço por unidade = valor total dividido pela quantidade (não temos o
+// valor unitário da nota salvo à parte). "—" quando não há quantidade.
+function formatUnitPrice(amount: number, quantidade?: number | null, unidadeMedida?: string | null): string {
+  if (!quantidade) return "—";
+  const perUnit = currencyFormatter.format(amount / quantidade);
+  return unidadeMedida ? `${perUnit}/${unidadeMedida}` : perUnit;
+}
+
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "2-digit",
@@ -56,12 +64,14 @@ export function TransactionsTable({
   showType = true,
   showCode = false,
   showQuantity = false,
+  showUnitPrice = false,
 }: {
   transactions: TableRow[];
   onRowClick?: (transaction: TableRow) => void;
   showType?: boolean;
   showCode?: boolean;
   showQuantity?: boolean;
+  showUnitPrice?: boolean;
 }) {
   return (
     <>
@@ -75,6 +85,7 @@ export function TransactionsTable({
               {showCode && <th className="px-4 py-3 font-medium">Código</th>}
               <th className="px-4 py-3 font-medium">Categoria</th>
               {showType && <th className="px-4 py-3 font-medium">Tipo</th>}
+              {showUnitPrice && <th className="px-4 py-3 text-right font-medium">Preço/Unid.</th>}
               <th className="px-4 py-3 text-right font-medium">Valor</th>
             </tr>
           </thead>
@@ -119,6 +130,11 @@ export function TransactionsTable({
                   {showType && (
                     <td className="px-4 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-400">
                       {isIncome ? "Receita" : "Despesa"}
+                    </td>
+                  )}
+                  {showUnitPrice && (
+                    <td className="px-4 py-3 text-right whitespace-nowrap text-zinc-600 dark:text-zinc-400">
+                      {formatUnitPrice(transaction.amount, transaction.quantidade, transaction.unidadeMedida)}
                     </td>
                   )}
                   <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -177,6 +193,11 @@ export function TransactionsTable({
                   {showQuantity && (
                     <span className="block text-xs text-zinc-500 dark:text-zinc-400">
                       {formatQuantity(transaction.quantidade, transaction.unidadeMedida)}
+                    </span>
+                  )}
+                  {showUnitPrice && (
+                    <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                      {formatUnitPrice(transaction.amount, transaction.quantidade, transaction.unidadeMedida)}
                     </span>
                   )}
                 </span>

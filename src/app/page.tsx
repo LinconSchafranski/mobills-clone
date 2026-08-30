@@ -8,6 +8,7 @@ import { MonthlyIncomeExpenseChart } from "@/components/charts/MonthlyIncomeExpe
 import { CategoryEvolutionChart } from "@/components/charts/CategoryEvolutionChart";
 import { AppHeader } from "@/components/AppHeader";
 import { buildCategoryColorMap, HIDDEN_CATEGORY_NAMES } from "@/lib/categoryColors";
+import { startOfUTCMonth } from "@/lib/dates";
 
 // Página lê o banco a cada requisição — nunca deve ser pré-renderizada
 // estaticamente no build (que roda antes das migrations serem aplicadas).
@@ -17,10 +18,6 @@ const monthAbbreviationFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",
   timeZone: "UTC",
 });
-
-function startOfUTCMonth(date: Date, monthOffset = 0): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + monthOffset, 1));
-}
 
 type SearchParams = {
   periodo?: string;

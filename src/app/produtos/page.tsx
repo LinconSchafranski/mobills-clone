@@ -3,6 +3,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { TransactionsTable } from "@/components/TransactionsTable";
 import { ProductMonthlyChart } from "@/components/charts/ProductMonthlyChart";
 import { buildCategoryColorMap } from "@/lib/categoryColors";
+import { startOfUTCMonth } from "@/lib/dates";
 
 // Lê o banco a cada requisição, com base no termo buscado na URL.
 export const dynamic = "force-dynamic";
@@ -25,10 +26,19 @@ const inputClass =
 export default async function ProdutosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; mes?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, mes } = await searchParams;
   const query = (q ?? "").trim();
+
+  // Formato do <input type="month">: "YYYY-MM".
+  const mesValido = mes && /^\d{4}-\d{2}$/.test(mes) ? mes : "";
+  let dateFilter: { gte: Date; lt: Date } | undefined;
+  if (mesValido) {
+    const [year, month] = mesValido.split("-").map(Number);
+    const start = new Date(Date.UTC(year, month - 1, 1));
+    dateFilter = { gte: start, lt: startOfUTCMonth(start, 1) };
+  }
 
   const allCategories = await prisma.category.findMany({ orderBy: { name: "asc" } });
   const categoryColor = buildCategoryColorMap(allCategories);
@@ -42,6 +52,7 @@ export default async function ProdutosPage({
             { subcategoria: { contains: query } },
             { codigoItem: { contains: query } },
           ],
+          ...(dateFilter ? { date: dateFilter } : {}),
         },
         include: { category: true },
         orderBy: { date: "desc" },
@@ -67,6 +78,24 @@ export default async function ProdutosPage({
       ? "—"
       : Array.from(quantityByUnit.entries())
           .map(([unit, total]) => (unit ? `${quantityFormatter.format(total)} ${unit}` : quantityFormatter.format(total)))
+          .join(" + ");
+
+  // Valor médio por unidade = total gasto / quantidade total, também agrupado
+  // por unidade (misturar Kg com UN numa média só não faria sentido).
+  const amountByUnit = new Map<string, number>();
+  for (const transaction of matches) {
+    if (transaction.quantidade == null) continue;
+    const unit = transaction.unidadeMedida?.toUpperCase() ?? "";
+    amountByUnit.set(unit, (amountByUnit.get(unit) ?? 0) + Number(transaction.amount));
+  }
+  const valorMedioPorUnidadeLabel =
+    quantityByUnit.size === 0
+      ? "—"
+      : Array.from(quantityByUnit.entries())
+          .map(([unit, totalQuantidade]) => {
+            const media = (amountByUnit.get(unit) ?? 0) / totalQuantidade;
+            return unit ? `${currencyFormatter.format(media)}/${unit}` : currencyFormatter.format(media);
+          })
           .join(" + ");
 
   const monthlyTotalsByKey = new Map<string, number>();
@@ -111,14 +140,21 @@ export default async function ProdutosPage({
             Busque o histórico de gastos por item, independente do estabelecimento onde foi comprado.
           </p>
 
-          <form action="/produtos" method="GET" className="mt-4 flex gap-2">
+          <form action="/produtos" method="GET" className="mt-4 flex flex-wrap gap-2">
             <input
               type="text"
               name="q"
               defaultValue={query}
               placeholder="Digite o nome de um produto, ex: gasolina"
               autoFocus
-              className={inputClass}
+              className={`min-w-[220px] flex-1 ${inputClass}`}
+            />
+            <input
+              type="month"
+              name="mes"
+              defaultValue={mesValido}
+              aria-label="Filtrar por mês e ano"
+              className={`w-auto shrink-0 ${inputClass}`}
             />
             <button
               type="submit"
@@ -155,7 +191,7 @@ export default async function ProdutosPage({
 
         {query && quantidadeCompras > 0 && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">Total gasto</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums text-red-600 dark:text-red-500">
@@ -180,6 +216,12 @@ export default async function ProdutosPage({
                   {quantidadeTotalLabel}
                 </p>
               </div>
+              <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">Valor médio por unidade</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums text-black dark:text-zinc-50">
+                  {valorMedioPorUnidadeLabel}
+                </p>
+              </div>
             </div>
 
             <div className="rounded-lg border border-black/[.08] bg-white p-4 dark:border-white/[.145] dark:bg-zinc-950">
@@ -193,7 +235,13 @@ export default async function ProdutosPage({
               <h3 className="mb-3 text-sm font-medium text-zinc-600 dark:text-zinc-400">
                 {quantidadeCompras} {quantidadeCompras === 1 ? "compra encontrada" : "compras encontradas"}
               </h3>
-              <TransactionsTable transactions={tableRows} showType={false} showCode showQuantity />
+              <TransactionsTable
+                transactions={tableRows}
+                showType={false}
+                showCode
+                showQuantity
+                showUnitPrice
+              />
             </div>
           </>
         )}
